@@ -63,6 +63,7 @@ type ServeMux struct {
 	routingErrorHandler       RoutingErrorHandlerFunc
 	disablePathLengthFallback bool
 	unescapingMode            UnescapingMode
+	beforeRoute               []func(w http.ResponseWriter, r *http.Request, pathParams map[string]string, pattern string) bool
 }
 
 // ServeMuxOption is an option that can be given to a ServeMux on construction.
@@ -254,6 +255,12 @@ func WithHealthzEndpoint(healthCheckClient grpc_health_v1.HealthClient) ServeMux
 	return WithHealthEndpointAt(healthCheckClient, "/healthz")
 }
 
+func WithBeforeRoute(beforeRoute func(w http.ResponseWriter, r *http.Request, pathParams map[string]string, pattern string) bool) ServeMuxOption {
+	return func(serveMux *ServeMux) {
+		serveMux.beforeRoute = append(serveMux.beforeRoute, beforeRoute)
+	}
+}
+
 // NewServeMux returns a new ServeMux whose internal mapping is empty.
 func NewServeMux(opts ...ServeMuxOption) *ServeMux {
 	serveMux := &ServeMux{
@@ -285,7 +292,16 @@ func NewServeMux(opts ...ServeMuxOption) *ServeMux {
 
 // Handle associates "h" to the pair of HTTP method and path pattern.
 func (s *ServeMux) Handle(meth string, pat Pattern, h HandlerFunc) {
-	s.handlers[meth] = append([]handler{{pat: pat, h: h}}, s.handlers[meth]...)
+	s.handlers[meth] = append([]handler{{pat: pat, h: func(w http.ResponseWriter, r *http.Request, pathParams map[string]string) {
+		if s.beforeRoute != nil {
+			for _, brt := range s.beforeRoute {
+				if !brt(w, r, pathParams, pat.String()) {
+					return
+				}
+			}
+		}
+		h(w, r, pathParams)
+	}}}, s.handlers[meth]...)
 }
 
 // HandlePath allows users to configure custom path handlers.
