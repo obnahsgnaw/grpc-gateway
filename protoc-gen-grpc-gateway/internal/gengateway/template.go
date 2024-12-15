@@ -774,5 +774,20 @@ var (
 	{{end}}
 	{{end}}
 )
+
+type {{$svc.GetName}}{{$.RegisterFuncSuffix}}Register struct{}
+
+var {{$svc.GetName}}{{$.RegisterFuncSuffix}}Server = &{{$svc.GetName}}{{$.RegisterFuncSuffix}}Register{}
+
+func (r *{{$svc.GetName}}{{$.RegisterFuncSuffix}}Register) Desc() grpc.ServiceDesc {
+	return {{$svc.InstanceName}}_ServiceDesc
+}
+func (r *{{$svc.GetName}}{{$.RegisterFuncSuffix}}Register) Register(ctx context.Context, mux *runtime.ServeMux, server interface{}) error {
+	if s, ok := server.({{$svc.InstanceName}}Server); ok {
+		return Register{{$svc.GetName}}{{$.RegisterFuncSuffix}}Server(ctx, mux, s)
+	}
+	panic("not a {{$svc.GetName}} service")
+}
+
 {{end}}`))
 )
